@@ -47,12 +47,12 @@ void connectMqtt() {
     delay(500);
   }
 
-  client.subscribe("/air-remote/passthru-setting");
-  client.publish("/air-remote/events", "{ \"event\": \"N\" }");
+  client.subscribe("air-remote/passthru-setting");
+  client.publish("air-remote/events", "{ \"event\": \"N\" }");
 }
 
 void messageReceived(String &topic, String &payload) {
-  if (topic == "/air-remote/passthru-setting") {
+  if (topic == "air-remote/passthru-setting") {
     intendedPassthruFlag = payload == "ON";
   }
 }
@@ -85,7 +85,7 @@ void loop() {
   if (IrReceiver.decode()) {
     if (IrReceiver.decodedIRData.decodedRawData == 0x854) {
       if (millis() - lastPwrSignal > 500 && client.connected()) {
-        client.publish("/air-remote/events", "{ \"event\": \"W\" }");
+        client.publish("air-remote/events", "{ \"event\": \"W\" }");
       }
       lastPwrSignal = millis();
     }
@@ -99,7 +99,7 @@ void loop() {
       uint8_t data = Wire.read();
       if (kind >= 'A' && kind <= 'Z' && client.connected()) {
         int len = sprintf(outputBuf, "{ \"event\": \"%c\", \"data\": \"0x%02X\" }", kind, data);
-        client.publish("/air-remote/events", outputBuf, len);
+        client.publish("air-remote/events", outputBuf, len);
       }
     }
   }
