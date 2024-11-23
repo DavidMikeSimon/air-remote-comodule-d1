@@ -38,7 +38,7 @@ void writePassthru(bool value) {
   currentPassthruFlag = value;
 }
 
-void writeGamepad(char data[7]) {
+void writeGamepad(char data[8]) {
   Wire.beginTransmission(0x05);
   Wire.write('G');
   Wire.write(data[0]);
@@ -48,6 +48,7 @@ void writeGamepad(char data[7]) {
   Wire.write(data[4]);
   Wire.write(data[5]);
   Wire.write(data[6]);
+  Wire.write(data[7]);
   Wire.endTransmission();
 }
 
@@ -126,7 +127,7 @@ void loop() {
   int packetSize = Udp.parsePacket();
   if (packetSize) {
     int len = Udp.read(udpPacketBuf, 255);
-    if (len >= 7) {
+    if (len >= 8) {
       writeGamepad(udpPacketBuf);
     }
   }
