@@ -1,4 +1,5 @@
 #include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 #include <IRremote.hpp>
 #include <MQTT.h>
 #include <Wire.h>
@@ -18,20 +19,36 @@
 #define IR_RECEIVE_PIN D0
 #define TX_PIN D4
 #define RX_PIN D7
+#define UDP_PORT 7765
 
 WiFiClient net;
+WiFiUDP Udp;
 MQTTClient client;
 
 bool currentPassthruFlag = true;
 bool intendedPassthruFlag = true;
 unsigned long lastPwrSignal = 0;
 char outputBuf[64];
+char udpPacketBuf[255];
 
 void writePassthru(bool value) {
   Wire.beginTransmission(0x05);
   Wire.write(value ? 'P' : 'p');
   Wire.endTransmission();
   currentPassthruFlag = value;
+}
+
+void writeGamepad(char data[7]) {
+  Wire.beginTransmission(0x05);
+  Wire.write('G');
+  Wire.write(data[0]);
+  Wire.write(data[1]);
+  Wire.write(data[2]);
+  Wire.write(data[3]);
+  Wire.write(data[4]);
+  Wire.write(data[5]);
+  Wire.write(data[6]);
+  Wire.endTransmission();
 }
 
 void connectMqtt() {
@@ -60,7 +77,7 @@ void messageReceived(String &topic, String &payload) {
 void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-	//Serial.begin(19200);
+	Serial.begin(19200);
   Wire.begin();
 
   pinMode(IR_RECEIVE_PIN, INPUT_PULLUP);
@@ -68,6 +85,8 @@ void setup() {
 
   client.begin(MQTT_HOST, net);
   client.onMessage(messageReceived);
+
+  Udp.begin(UDP_PORT);
 }
 
 void loop() {
@@ -101,6 +120,14 @@ void loop() {
         int len = sprintf(outputBuf, "{ \"event\": \"%c\", \"data\": \"0x%02X\" }", kind, data);
         client.publish("air-remote/events", outputBuf, len);
       }
+    }
+  }
+
+  int packetSize = Udp.parsePacket();
+  if (packetSize) {
+    int len = Udp.read(udpPacketBuf, 255);
+    if (len >= 7) {
+      writeGamepad(udpPacketBuf);
     }
   }
 }
