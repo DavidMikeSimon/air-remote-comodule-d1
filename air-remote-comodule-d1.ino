@@ -7,12 +7,13 @@
 #include "secrets.h"
 
 /*
- * Event types:
+ * Event types to receive:
  * A - ASCII key
  * C - Consumer control scan code
  * K - Keyboard scan code (for non-ASCII keys)
  * N - Network connected
  * O - OK button
+ * U - USB connection state change
  * W - Power button
  */
 
@@ -20,6 +21,9 @@
 #define TX_PIN D4
 #define RX_PIN D7
 #define UDP_PORT 7765
+
+#define PASSTHRU_SETTING_TOPIC "air-remote/passthru-setting"
+#define USB_POWER_ON_TOPIC "air-remote/usb-power-on"
 
 WiFiClient net;
 WiFiUDP Udp;
@@ -30,12 +34,18 @@ bool intendedPassthruFlag = true;
 unsigned long lastPwrSignal = 0;
 char outputBuf[64];
 char udpPacketBuf[255];
+char pendingUsbPowerOn = false;
 
 void writePassthru(bool value) {
   Wire.beginTransmission(0x05);
   Wire.write(value ? 'P' : 'p');
   Wire.endTransmission();
-  currentPassthruFlag = value;
+}
+
+void writeUsbPowerOn() {
+  Wire.beginTransmission(0x05);
+  Wire.write('R');
+  Wire.endTransmission();
 }
 
 void writeGamepad(char* data, int len) {
@@ -60,13 +70,16 @@ void connectMqtt() {
     delay(500);
   }
 
-  client.subscribe("air-remote/passthru-setting");
+  client.subscribe(PASSTHRU_SETTING_TOPIC);
+  client.subscribe(USB_POWER_ON_TOPIC);
   client.publish("air-remote/events", "{ \"event\": \"N\" }");
 }
 
 void messageReceived(String &topic, String &payload) {
-  if (topic == "air-remote/passthru-setting") {
+  if (topic == PASSTHRU_SETTING_TOPIC) {
     intendedPassthruFlag = payload == "ON";
+  } else if (topic == USB_POWER_ON_TOPIC) {
+    pendingUsbPowerOn = true;
   }
 }
 
@@ -95,6 +108,12 @@ void loop() {
 
   if (currentPassthruFlag != intendedPassthruFlag) {
     writePassthru(intendedPassthruFlag);
+    currentPassthruFlag = intendedPassthruFlag;
+  }
+
+  if (pendingUsbPowerOn) {
+    writeUsbPowerOn();
+    pendingUsbPowerOn = false;
   }
 
   if (IrReceiver.decode()) {
